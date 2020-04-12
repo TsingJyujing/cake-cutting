@@ -3,7 +3,8 @@ from functools import reduce
 from math import floor
 from typing import Union, Mapping, List, Sequence, Tuple
 
-from .basics import CakeContainer, MatrixShape, MatrixPiece
+from .basics import CakeContainer, MatrixShape, MatrixPiece, PieceMapping
+from .utils import SortedCollection
 
 log = logging.getLogger(__file__)
 
@@ -41,6 +42,14 @@ def matrix_decomposition(
         container_size: MatrixShape,
         padding_size: MatrixShape
 ) -> PiecesCollection:
+    """
+    Split single
+    :param mat_id:
+    :param mat:
+    :param container_size:
+    :param padding_size:
+    :return:
+    """
     pieces_collection = PiecesCollection()
     if mat in container_size:
         pieces_collection.small.append((mat_id, MatrixPiece(0, 0, mat.width, mat.height)))
@@ -63,61 +72,98 @@ def matrix_decomposition(
         x_start = valid_width * col_count
         y_start = valid_height * row_count
 
-        for i in range(col_count):
-            pieces_collection.fit_width.append((mat_id, MatrixPiece(
-                i * valid_width,
+        remain_height = mat.height - y_start
+        if remain_height > padding_size.height * 2:
+            for i in range(col_count):
+                pieces_collection.fit_width.append((mat_id, MatrixPiece(
+                    i * valid_width,
+                    y_start,
+                    container_size.width,
+                    remain_height,
+                )))
+        remain_width = mat.width - x_start
+        if remain_width > padding_size.width * 2:
+            for j in range(row_count):
+                pieces_collection.fit_height.append((mat_id, MatrixPiece(
+                    x_start,
+                    j * valid_height,
+                    remain_width,
+                    container_size.height,
+                )))
+        if remain_width > padding_size.width * 2 and remain_height > padding_size.height * 2:
+            pieces_collection.small.append((mat_id, MatrixPiece(
+                x_start,
                 y_start,
-                container_size.width,
+                mat.width - x_start,
                 mat.height - y_start,
             )))
-        for j in range(row_count):
-            pieces_collection.fit_height.append((mat_id, MatrixPiece(
-                x_start,
-                j * valid_height,
-                mat.width - x_start,
-                container_size.height,
-            )))
-        pieces_collection.small.append((mat_id, MatrixPiece(
-            x_start,
-            y_start,
-            mat.width - x_start,
-            mat.height - y_start,
-        )))
     return pieces_collection
 
 
 def arrangement_algorithm(
         matrixes: Union[Sequence[MatrixShape], Mapping[str, MatrixShape]],
-        cs: MatrixShape,
-        ps: MatrixShape
+        container_size: MatrixShape,
+        padding_size: MatrixShape = None
 ) -> List[CakeContainer]:
     """
     Give an arrangement for input matrixes
     :param matrixes: Padded matrix
-    :param cs: container_size
-    :param ps: padding size
+    :param container_size: container_size
+    :param padding_size: padding size default (0,0) means no padding
     :return:
     """
     if isinstance(matrixes, Sequence):
         matrixes: Mapping[str, MatrixShape] = {i: v for i, v in enumerate(matrixes)}
 
+    padding_size = padding_size if padding_size is not None else MatrixShape(0, 0)
+
     # Value check
-    padding_size_mat = MatrixShape(ps.width * 2, ps.height * 2)
-    if padding_size_mat not in cs:
-        raise ValueError(f"Container's size {cs.shape} should larger than padding size {padding_size_mat.shape}")
+    padding_size_mat = MatrixShape(padding_size.width * 2, padding_size.height * 2)
+    if padding_size_mat not in container_size:
+        raise ValueError(
+            f"Container's size {container_size.shape} should larger than padding size {padding_size_mat.shape}")
     for mat_id, mat in matrixes.items():
         if padding_size_mat not in mat:
             raise ValueError(f"Matrix {mat_id} is too small. {mat.shape} < {padding_size_mat.shape} ")
 
-    containers = []
+    containers: List[CakeContainer] = []
 
-    # 1st, cut large images in pieces, make them all less than container size
+    # cut all large images in pieces, make them all less than container size
     pieces_collection = reduce(
         lambda a, b: a + b,
         (
-            matrix_decomposition(mat_id, mat, cs, ps)
+            matrix_decomposition(mat_id, mat, container_size, padding_size)
             for mat_id, mat in matrixes.items()
         )
     )
+
+    # extract the piece which can obtain whole container
+    for mat_id, full_piece in pieces_collection.full:
+        containers.append(CakeContainer([PieceMapping(
+            original_id=mat_id,
+            container_loc=MatrixPiece(0, 0, container_size.width, container_size.height),
+            original_loc=full_piece,
+            padding=padding_size
+        )]))
+
+    # process the fit-width pieces
+    sc_width = SortedCollection(pieces_collection.fit_width, key=lambda id_piece: id_piece[1].height)
+    while len(sc_width) > 0:
+        pieces = []
+        remain_size = container_size.height
+        while True:
+            try:
+                mat_id, piece_pop = sc_width.pop_le(remain_size)
+                start_index = container_size.height - remain_size
+                pieces.append(PieceMapping(
+                    original_id=mat_id,
+                    original_loc=piece_pop,
+                    container_loc=MatrixPiece(0, start_index, container_size.width, piece_pop.height),
+                ))
+                remain_size -= piece_pop.height
+            except ValueError as _:
+                containers.append(CakeContainer(pieces))
+                pieces = []
+                break
 
     return containers

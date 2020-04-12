@@ -54,8 +54,8 @@ class MatrixPiece:
 
 
 class PieceMapping:
-    def __init__(self, original_id, container_loc: MatrixPiece, original_loc: MatrixPiece, padding: int = 0):
-        self.padding = padding
+    def __init__(self, original_id, container_loc: MatrixPiece, original_loc: MatrixPiece, padding: MatrixShape = None):
+        self.padding = padding if padding is not None else MatrixShape(0, 0)
         self.original_loc = original_loc
         self.container_loc = container_loc
         self.original_id = original_id
