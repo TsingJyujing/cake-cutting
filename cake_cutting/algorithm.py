@@ -100,6 +100,76 @@ def matrix_decomposition(
     return pieces_collection
 
 
+def fill_with_small_block(
+        piece: MatrixPiece,
+        blocks: List[Tuple[object, MatrixPiece]],
+        minial_requirement: MatrixShape = None
+) -> List[PieceMapping]:
+    """
+    Trying to consume the rest piece of the Matrix
+    :param piece: the piece to consume
+    :param blocks: piece to fill
+    :param minial_requirement: the piece need to able to contain this shape
+    :return:
+    """
+    if minial_requirement:
+        if minial_requirement not in piece.shape:
+            return []
+    max_size = 0
+    max_id = None
+    for i, (mat_id, sub_piece) in enumerate(blocks):
+        if sub_piece.shape in piece.shape:
+            if sub_piece.area > max_size:
+                max_id = i
+    if max_id is None:
+        return []
+    else:
+        mat_id, sub_piece = blocks.pop(max_id)
+        result_list = [PieceMapping(
+            original_id=mat_id,
+            original_loc=sub_piece,
+            container_loc=MatrixPiece(
+                piece.left, piece.top,
+                sub_piece.width, sub_piece.height
+            )
+        )]
+        horizon_bar_size = (piece.width - sub_piece.width) * piece.height
+        vertical_bar_size = (piece.height - sub_piece.height) * piece.width
+        if horizon_bar_size >= vertical_bar_size:
+            rest_parts = [
+                MatrixPiece(
+                    piece.left + sub_piece.width,
+                    piece.top,
+                    piece.width - sub_piece.width,
+                    piece.height,
+                ),
+                MatrixPiece(
+                    piece.left,
+                    piece.top + sub_piece.height,
+                    sub_piece.width,
+                    piece.height - sub_piece.height,
+                ),
+            ]
+        else:
+            rest_parts = [
+                MatrixPiece(
+                    piece.left,
+                    piece.top + sub_piece.height,
+                    piece.width,
+                    piece.height - sub_piece.height,
+                ),
+                MatrixPiece(
+                    piece.left + sub_piece.width,
+                    piece.top,
+                    piece.width - sub_piece.width,
+                    sub_piece.height,
+                ),
+            ]
+        for rest_part in rest_parts:
+            result_list += fill_with_small_block(rest_part, blocks, minial_requirement)
+        return result_list
+
+
 def arrangement_algorithm(
         matrixes: Union[Sequence[MatrixShape], Mapping[str, MatrixShape]],
         container_size: MatrixShape,
@@ -150,20 +220,61 @@ def arrangement_algorithm(
     sc_width = SortedCollection(pieces_collection.fit_width, key=lambda id_piece: id_piece[1].height)
     while len(sc_width) > 0:
         pieces = []
-        remain_size = container_size.height
-        while True:
+        remain_height = container_size.height
+        while remain_height > 0:
             try:
-                mat_id, piece_pop = sc_width.pop_le(remain_size)
-                start_index = container_size.height - remain_size
+                mat_id, piece_pop = sc_width.pop_le(remain_height)
                 pieces.append(PieceMapping(
                     original_id=mat_id,
                     original_loc=piece_pop,
-                    container_loc=MatrixPiece(0, start_index, container_size.width, piece_pop.height),
+                    container_loc=MatrixPiece(
+                        0, container_size.height - remain_height,
+                        container_size.width, piece_pop.height
+                    ),
                 ))
-                remain_size -= piece_pop.height
-            except ValueError as _:
-                containers.append(CakeContainer(pieces))
-                pieces = []
+                remain_height -= piece_pop.height
+            except ValueError as _:  # Can't pop element out
                 break
+        if remain_height > 0:
+            rest_piece = MatrixPiece(
+                0, container_size.height - remain_height,
+                container_size.width, remain_height
+            )
+            pieces += fill_with_small_block(rest_piece, pieces_collection.small)
+        containers.append(CakeContainer(pieces))
+        pieces = []  # reset pieces slots
 
+    # process the fit-width pieces
+    sc_height = SortedCollection(pieces_collection.fit_height, key=lambda id_piece: id_piece[1].width)
+    while len(sc_height) > 0:
+        pieces = []
+        remain_width = container_size.width
+        while remain_width > 0:
+            try:
+                mat_id, piece_pop = sc_height.pop_le(remain_width)
+                pieces.append(PieceMapping(
+                    original_id=mat_id,
+                    original_loc=piece_pop,
+                    container_loc=MatrixPiece(
+                        container_size.width - remain_width, 0,
+                        piece_pop.width, container_size.height
+                    ),
+                ))
+                remain_width -= piece_pop.width
+            except ValueError as _:  # Can't pop element out
+                break
+        if remain_width > 0:
+            rest_piece = MatrixPiece(
+                container_size.width - remain_width, 0,
+                remain_width, container_size.height
+            )
+            pieces += fill_with_small_block(rest_piece, pieces_collection.small)
+        containers.append(CakeContainer(pieces))
+        pieces = []  # reset pieces slots
+
+    while len(pieces_collection.small) > 0:
+        containers.append(CakeContainer(fill_with_small_block(
+            MatrixPiece(0, 0, container_size.width, container_size.height),
+            pieces_collection.small
+        )))
     return containers
