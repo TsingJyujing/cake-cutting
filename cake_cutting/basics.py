@@ -90,13 +90,19 @@ class PieceMapping:
         if original_loc.shape != container_loc.shape:
             raise ValueError(f"Can't mapping from size {original_loc.shape} to size {container_loc.shape}!")
 
+    @property
+    def area(self):
+        return self.container_loc.area
+
     def __str__(self):
         return f"{self.original_id}:{str(self.original_loc)}->{str(self.container_loc)}"
 
 
 class CakeContainer:
-    def __init__(self, pieces: List[PieceMapping]):
+    def __init__(self, container_size: MatrixShape, pieces: List[PieceMapping]):
+        self.container_size = container_size
         self.pieces = pieces
+
 
     def display(self):
         log.debug("PieceMapping:")

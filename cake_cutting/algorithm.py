@@ -209,15 +209,18 @@ def arrangement_algorithm(
 
     # extract the piece which can obtain whole container
     for mat_id, full_piece in pieces_collection.full:
-        containers.append(CakeContainer([PieceMapping(
-            original_id=mat_id,
-            container_loc=MatrixPiece(0, 0, container_size.width, container_size.height),
-            original_loc=full_piece,
-            padding=padding_size
-        )]))
+        containers.append(CakeContainer(
+            container_size,
+            [PieceMapping(
+                original_id=mat_id,
+                container_loc=MatrixPiece(0, 0, container_size.width, container_size.height),
+                original_loc=full_piece,
+                padding=padding_size
+            )]
+        ))
 
     # process the fit-width pieces
-    sc_width = SortedCollection(pieces_collection.fit_width, key=lambda id_piece: id_piece[1].height)
+    sc_width = SortedCollection(pieces_collection.fit_width, key=lambda x: x[1].height)
     while len(sc_width) > 0:
         pieces = []
         remain_height = container_size.height
@@ -241,7 +244,7 @@ def arrangement_algorithm(
                 container_size.width, remain_height
             )
             pieces += fill_with_small_block(rest_piece, pieces_collection.small)
-        containers.append(CakeContainer(pieces))
+        containers.append(CakeContainer(container_size, pieces))
         pieces = []  # reset pieces slots
 
     # process the fit-width pieces
@@ -269,12 +272,15 @@ def arrangement_algorithm(
                 remain_width, container_size.height
             )
             pieces += fill_with_small_block(rest_piece, pieces_collection.small)
-        containers.append(CakeContainer(pieces))
+        containers.append(CakeContainer(container_size, pieces))
         pieces = []  # reset pieces slots
 
     while len(pieces_collection.small) > 0:
-        containers.append(CakeContainer(fill_with_small_block(
-            MatrixPiece(0, 0, container_size.width, container_size.height),
-            pieces_collection.small
-        )))
+        containers.append(CakeContainer(
+            container_size,
+            fill_with_small_block(
+                MatrixPiece(0, 0, container_size.width, container_size.height),
+                pieces_collection.small
+            )
+        ))
     return containers

@@ -79,7 +79,7 @@ class SortedCollection(object):
     def __init__(self, iterable=(), key=None):
         self._given_key = key
         key = (lambda x: x) if key is None else key
-        decorated = sorted((key(item), item) for item in iterable)
+        decorated = sorted(((key(item), item) for item in iterable), key=lambda x:x[0])
         self._keys = [k for k, item in decorated]
         self._items = [item for k, item in decorated]
         self._key = key
