@@ -1,5 +1,7 @@
 # Cake Cutting
 
+[![CircleCI](https://circleci.com/gh/TsingJyujing/cake-cutting.svg?style=svg)](https://circleci.com/gh/TsingJyujing/cake-cutting)
+
 ## Introduction
 
 An 🍰 cutting algorithm, basically used for FCN batch generation. 
